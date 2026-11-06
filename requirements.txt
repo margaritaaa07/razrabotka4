@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+requests
+sqlalchemy
+psycopg[binary]
+httpx
+asyncpg
+sqlalchemy[asyncio]
+py-spy

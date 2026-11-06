@@ -1,0 +1,76 @@
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: flights
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d flights"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  provider1:
+    build: .
+    command: uvicorn provider_stub.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - PROVIDER_ID=1
+      - DELAY_MS=300
+      - ERROR_500_PCT=5
+      - ERROR_3S_PCT=0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+
+  provider2:
+    build: .
+    command: uvicorn provider_stub.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - PROVIDER_ID=2
+      - DELAY_MS=500
+      - ERROR_500_PCT=5
+      - ERROR_3S_PCT=0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+
+  provider3:
+    build: .
+    command: uvicorn provider_stub.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - PROVIDER_ID=3
+      - DELAY_MS=800
+      - ERROR_500_PCT=5
+      - ERROR_3S_PCT=10
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+
+  search:
+    build: .
+    command: uvicorn app.search_async:app --host 0.0.0.0 --port 8000 --workers 1
+    ports:
+      - "8000:8000"
+    environment:
+    - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/flights
+    - PROVIDER_1_URL=http://provider1:8000
+    - PROVIDER_2_URL=http://provider2:8000
+    - PROVIDER_3_URL=http://provider3:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      provider1:
+        condition: service_healthy
+      provider2:
+        condition: service_healthy
+      provider3:
+        condition: service_healthy
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - ./results:/results
